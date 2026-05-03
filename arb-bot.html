@@ -747,6 +747,8 @@
       banner.classList.add('active');
       if (!wasActive) {
         beep();
+        const best = opps[0];
+        sendNotif('Arb Opportunity', `${best.spreadBps.toFixed(1)} bps · ${best.buyRow.chain} → ${best.sellRow.chain}`);
         document.getElementById('banner-time').textContent =
           `Detected at ${new Date().toLocaleTimeString()}`;
       }
@@ -808,11 +810,25 @@
     startCountdown();
   });
 
+  // ── Notifications ────────────────────────────────────────────────────────────
+  function requestNotifPermission() {
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission();
+    }
+  }
+
+  function sendNotif(title, body) {
+    if ('Notification' in window && Notification.permission === 'granted') {
+      new Notification(title, { body, icon: './icon.svg' });
+    }
+  }
+
   // ── Init ─────────────────────────────────────────────────────────────────────
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('./sw.js').catch(() => {});
   }
 
+  requestNotifPermission();
   refresh();
   scheduleRefresh();
 </script>
