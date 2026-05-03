@@ -261,20 +261,24 @@
 
     thead th {
       background: #0f3460;
-      padding: 0.7rem 1rem;
+      padding: 0.6rem 0.9rem;
       text-align: left;
       font-size: 0.78rem;
       text-transform: uppercase;
       letter-spacing: 1px;
       color: #a8dadc;
-      white-space: nowrap;
     }
+
+    thead th:last-child { text-align: right; }
 
     tbody tr { border-bottom: 1px solid #0f3460; transition: background 0.15s; }
     tbody tr:last-child { border-bottom: none; }
     tbody tr:hover { background: #1d2e50; }
 
-    tbody td { padding: 0.7rem 1rem; font-size: 0.9rem; white-space: nowrap; }
+    tbody td { padding: 0.65rem 0.9rem; font-size: 0.9rem; }
+
+    .venue-name { display: block; font-weight: 600; color: #eee; }
+    .venue-meta { display: block; font-size: 0.75rem; margin-top: 2px; }
 
     .type-cex { color: #e94560; font-weight: 600; }
     .type-dex { color: #a8dadc; font-weight: 600; }
@@ -283,6 +287,7 @@
     .chain-polygon   { color: #9b59b6; }
     .chain-avalanche { color: #e74c3c; }
 
+    .price-cell { text-align: right; }
     .price-val { font-family: monospace; font-size: 1rem; font-weight: bold; }
     .price-max { color: #2ecc71; }
     .price-min { color: #e74c3c; }
@@ -301,7 +306,6 @@
     .badge-low   { background: #4a1a1a; color: #e74c3c; }
     .badge-stale { background: #3a3a1a; color: #f0c040; }
 
-    .volume { color: #777; font-size: 0.82rem; }
     .row-stale { opacity: 0.4; }
 
     .loading-row td { text-align: center; color: #555; padding: 2rem; }
@@ -388,14 +392,11 @@
       <thead>
         <tr>
           <th>Exchange</th>
-          <th>Chain</th>
-          <th>Type</th>
           <th>Price (USDC)</th>
-          <th>24h Volume</th>
         </tr>
       </thead>
       <tbody id="table-body">
-        <tr class="loading-row"><td colspan="5">Fetching data…</td></tr>
+        <tr class="loading-row"><td colspan="2">Fetching data…</td></tr>
       </tbody>
     </table>
   </div>
@@ -571,7 +572,7 @@
     const stale  = rows.filter(r => r.stale);
 
     if (!rows.length) {
-      tbody.innerHTML = '<tr class="error-row"><td colspan="5">No matching pairs found.</td></tr>';
+      tbody.innerHTML = '<tr class="error-row"><td colspan="2">No matching pairs found.</td></tr>';
       document.getElementById('spread-summary').style.display = 'none';
       return;
     }
@@ -590,28 +591,31 @@
         ? '<span class="badge badge-high">HIGH</span>'
         : isMin ? '<span class="badge badge-low">LOW</span>' : '';
       const typeCls  = r.type === 'CEX' ? 'type-cex' : 'type-dex';
+      const chainMeta = r.chain !== '—' ? ` · <span class="${chainClass(r.chain)}">${r.chain}</span>` : '';
+      const volLine  = r.volume ? `<span class="price-sub" style="color:#555">${fmtVol(r.volume)}</span>` : '';
       const priceCell = r.type === 'CEX'
         ? `<span class="price-val ${priceCls}">${r.price.toFixed(6)}</span>${badge}<span class="price-sub">bid ${r.effectiveBid.toFixed(6)} · ask ${r.effectiveAsk.toFixed(6)}</span>`
-        : `<span class="price-val ${priceCls}">${r.price.toFixed(6)}</span>${badge}`;
+        : `<span class="price-val ${priceCls}">${r.price.toFixed(6)}</span>${badge}${volLine}`;
       return `
         <tr>
-          <td>${r.name}</td>
-          <td class="${chainClass(r.chain)}">${r.chain}</td>
-          <td class="${typeCls}">${r.type}</td>
-          <td>${priceCell}</td>
-          <td class="volume">${fmtVol(r.volume)}</td>
+          <td>
+            <span class="venue-name">${r.name}</span>
+            <span class="venue-meta"><span class="${typeCls}">${r.type}</span>${chainMeta}</span>
+          </td>
+          <td class="price-cell">${priceCell}</td>
         </tr>`;
     });
 
     const staleHtml = stale.map(r => {
-      const typeCls = r.type === 'CEX' ? 'type-cex' : 'type-dex';
+      const typeCls  = r.type === 'CEX' ? 'type-cex' : 'type-dex';
+      const chainMeta = r.chain !== '—' ? ` · <span class="${chainClass(r.chain)}">${r.chain}</span>` : '';
       return `
         <tr class="row-stale">
-          <td>${r.name} <span class="badge badge-stale">STALE</span></td>
-          <td class="${chainClass(r.chain)}">${r.chain}</td>
-          <td class="${typeCls}">${r.type}</td>
-          <td><span class="price-val">${r.price.toFixed(6)}</span></td>
-          <td class="volume">${fmtVol(r.volume)}</td>
+          <td>
+            <span class="venue-name">${r.name} <span class="badge badge-stale">STALE</span></span>
+            <span class="venue-meta"><span class="${typeCls}">${r.type}</span>${chainMeta}</span>
+          </td>
+          <td class="price-cell"><span class="price-val">${r.price.toFixed(6)}</span></td>
         </tr>`;
     });
 
