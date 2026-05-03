@@ -1,4 +1,4 @@
-const CACHE = 'arb-bot-v1';
+const CACHE = 'arb-bot-v2';
 const SHELL = ['./arb-bot.html', './manifest.json', './icon.svg'];
 
 self.addEventListener('install', e => {
