@@ -381,6 +381,9 @@
         <option value="60">60 s</option>
       </select>
     </div>
+    <div class="control-group">
+      <button id="notif-btn" onclick="handleNotifBtn()" style="background:#0f3460;border:1px solid #1a4a80;color:#eee;border-radius:6px;padding:0.3rem 0.8rem;font-size:0.85rem;cursor:pointer;">🔔 Enable Alerts</button>
+    </div>
   </div>
 
   <!-- Per-pair DEX spread summary -->
@@ -811,10 +814,30 @@
   });
 
   // ── Notifications ────────────────────────────────────────────────────────────
-  function requestNotifPermission() {
-    if ('Notification' in window && Notification.permission === 'default') {
-      Notification.requestPermission();
+  function updateNotifBtn() {
+    const btn = document.getElementById('notif-btn');
+    if (!btn || !('Notification' in window)) return;
+    if (Notification.permission === 'granted') {
+      btn.textContent = '🔔 Alerts On';
+      btn.style.borderColor = '#2ecc71';
+      btn.style.color = '#2ecc71';
+    } else if (Notification.permission === 'denied') {
+      btn.textContent = '🔕 Alerts Blocked';
+      btn.style.color = '#888';
+      btn.style.borderColor = '#444';
+    } else {
+      btn.textContent = '🔔 Enable Alerts';
+      btn.style.borderColor = '#1a4a80';
+      btn.style.color = '#eee';
     }
+  }
+
+  async function handleNotifBtn() {
+    if (!('Notification' in window)) return;
+    if (Notification.permission !== 'granted') {
+      await Notification.requestPermission();
+    }
+    updateNotifBtn();
   }
 
   function sendNotif(title, body) {
@@ -828,7 +851,7 @@
     navigator.serviceWorker.register('./sw.js').catch(() => {});
   }
 
-  requestNotifPermission();
+  updateNotifBtn();
   refresh();
   scheduleRefresh();
 </script>
