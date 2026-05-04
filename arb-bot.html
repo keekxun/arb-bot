@@ -443,6 +443,9 @@
   ];
 
 
+  const WORKER_URL    = 'https://arb-bot-worker.keekxun.workers.dev';
+  const WORKER_API_KEY = '71c8fef0152bcd994c622ce26c046c8ef7740545';
+
   const DEFAULT_THRESHOLDS = {
     polygon_base: 15,
     polygon_avalanche: 25,
@@ -846,18 +849,37 @@
   });
 
   // ── Thresholds ───────────────────────────────────────────────────────────────
-  function loadThresholds() {
+  async function loadThresholds() {
     try {
-      const saved = JSON.parse(localStorage.getItem('arb-thresholds') || '{}');
-      Object.keys(DEFAULT_THRESHOLDS).forEach(k => {
-        if (typeof saved[k] === 'number' && saved[k] >= 0) thresholds[k] = saved[k];
-      });
-    } catch (_) {}
+      const res = await fetch(`${WORKER_URL}/thresholds`);
+      if (res.ok) {
+        const remote = await res.json();
+        Object.keys(DEFAULT_THRESHOLDS).forEach(k => {
+          if (typeof remote[k] === 'number' && remote[k] >= 0) thresholds[k] = remote[k];
+        });
+        localStorage.setItem('arb-thresholds', JSON.stringify(thresholds));
+      }
+    } catch (_) {
+      // Fall back to localStorage if worker unreachable
+      try {
+        const saved = JSON.parse(localStorage.getItem('arb-thresholds') || '{}');
+        Object.keys(DEFAULT_THRESHOLDS).forEach(k => {
+          if (typeof saved[k] === 'number' && saved[k] >= 0) thresholds[k] = saved[k];
+        });
+      } catch (_) {}
+    }
     syncThresholdInputs();
   }
 
-  function saveThresholds() {
+  async function saveThresholds() {
     localStorage.setItem('arb-thresholds', JSON.stringify(thresholds));
+    try {
+      await fetch(`${WORKER_URL}/thresholds`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-API-Key': WORKER_API_KEY },
+        body: JSON.stringify(thresholds),
+      });
+    } catch (_) {}
   }
 
   function syncThresholdInputs() {
@@ -928,16 +950,14 @@
     'thr-cex-avalanche':     'cex_avalanche',
   };
   Object.entries(thrMap).forEach(([id, key]) => {
-    document.getElementById(id).addEventListener('change', e => {
+    document.getElementById(id).addEventListener('change', async e => {
       const val = parseInt(e.target.value);
-      if (!isNaN(val) && val >= 0) { thresholds[key] = val; saveThresholds(); refresh(); }
+      if (!isNaN(val) && val >= 0) { thresholds[key] = val; await saveThresholds(); refresh(); }
     });
   });
 
-  loadThresholds();
+  loadThresholds().then(() => { refresh(); scheduleRefresh(); });
   updateNotifBtn();
-  refresh();
-  scheduleRefresh();
 </script>
 </body>
 </html>
