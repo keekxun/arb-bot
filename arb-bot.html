@@ -384,6 +384,25 @@
     <div class="control-group">
       <button id="notif-btn" onclick="handleNotifBtn()" style="background:#0f3460;border:1px solid #1a4a80;color:#eee;border-radius:6px;padding:0.3rem 0.8rem;font-size:0.85rem;cursor:pointer;">🔔 Enable Alerts</button>
     </div>
+    <div class="control-group">
+      <button onclick="toggleThresholds()" style="background:#0f3460;border:1px solid #1a4a80;color:#eee;border-radius:6px;padding:0.3rem 0.8rem;font-size:0.85rem;cursor:pointer;">⚙ Thresholds</button>
+    </div>
+  </div>
+
+  <!-- Threshold settings (collapsible) -->
+  <div class="controls" id="threshold-panel" style="display:none; flex-direction:column; align-items:flex-start; gap:0.8rem;">
+    <div style="font-size:0.75rem; color:#888; text-transform:uppercase; letter-spacing:1px;">DEX ↔ DEX min spread (bps)</div>
+    <div style="display:flex; flex-wrap:wrap; gap:0.8rem;">
+      <div class="control-group"><label>Polygon/Base</label><input type="number" id="thr-polygon-base" min="0" step="1" style="width:70px"></div>
+      <div class="control-group"><label>Polygon/Avalanche</label><input type="number" id="thr-polygon-avalanche" min="0" step="1" style="width:70px"></div>
+      <div class="control-group"><label>Base/Avalanche</label><input type="number" id="thr-base-avalanche" min="0" step="1" style="width:70px"></div>
+    </div>
+    <div style="font-size:0.75rem; color:#888; text-transform:uppercase; letter-spacing:1px; margin-top:0.2rem;">Coinbase ↔ DEX min spread (bps)</div>
+    <div style="display:flex; flex-wrap:wrap; gap:0.8rem;">
+      <div class="control-group"><label>vs Base</label><input type="number" id="thr-cex-base" min="0" step="1" style="width:70px"></div>
+      <div class="control-group"><label>vs Polygon</label><input type="number" id="thr-cex-polygon" min="0" step="1" style="width:70px"></div>
+      <div class="control-group"><label>vs Avalanche</label><input type="number" id="thr-cex-avalanche" min="0" step="1" style="width:70px"></div>
+    </div>
   </div>
 
   <!-- Per-pair DEX spread summary -->
@@ -424,22 +443,35 @@
   ];
 
 
-  // Minimum spread (bps) for each DEX-to-DEX pair to be considered profitable
-  const PAIR_THRESHOLDS = {
-    'Polygon-Base':      15,
-    'Base-Polygon':      15,
-    'Polygon-Avalanche': 25,
-    'Avalanche-Polygon': 25,
-    'Base-Avalanche':    20,
-    'Avalanche-Base':    20,
+  const DEFAULT_THRESHOLDS = {
+    polygon_base: 15,
+    polygon_avalanche: 25,
+    base_avalanche: 20,
+    cex_base: 10,
+    cex_polygon: 15,
+    cex_avalanche: 20,
   };
 
-  // Minimum spread (bps) for Coinbase vs each DEX chain to be considered profitable
-  const CEX_THRESHOLDS = {
-    'Base':      10,
-    'Polygon':   15,
-    'Avalanche': 20,
-  };
+  let thresholds = { ...DEFAULT_THRESHOLDS };
+
+  function getPairThresholds() {
+    return {
+      'Polygon-Base':      thresholds.polygon_base,
+      'Base-Polygon':      thresholds.polygon_base,
+      'Polygon-Avalanche': thresholds.polygon_avalanche,
+      'Avalanche-Polygon': thresholds.polygon_avalanche,
+      'Base-Avalanche':    thresholds.base_avalanche,
+      'Avalanche-Base':    thresholds.base_avalanche,
+    };
+  }
+
+  function getCexThresholds() {
+    return {
+      'Base':      thresholds.cex_base,
+      'Polygon':   thresholds.cex_polygon,
+      'Avalanche': thresholds.cex_avalanche,
+    };
+  }
 
   // ── State ───────────────────────────────────────────────────────────────────
   let refreshSecs     = 30;
@@ -633,7 +665,7 @@
       for (let j = i + 1; j < dexRows.length; j++) {
         const a = dexRows[i], b = dexRows[j];
         const key = `${a.chain}-${b.chain}`;
-        const min = PAIR_THRESHOLDS[key];
+        const min = getPairThresholds()[key];
         if (min === undefined) continue;
         const spread = Math.abs(a.price - b.price) / Math.min(a.price, b.price) * 10000;
         const hot = spread >= min;
@@ -643,7 +675,7 @@
 
     if (cexRow) {
       for (const dex of dexRows) {
-        const min = CEX_THRESHOLDS[dex.chain];
+        const min = getCexThresholds()[dex.chain];
         if (min === undefined) continue;
         const buyOnCex  = (dex.price - cexRow.effectiveAsk) / cexRow.effectiveAsk * 10000;
         const sellOnCex = (cexRow.effectiveBid - dex.price) / dex.price * 10000;
@@ -670,7 +702,7 @@
       for (let j = i + 1; j < dexRows.length; j++) {
         const a   = dexRows[i], b = dexRows[j];
         const key = `${a.chain}-${b.chain}`;
-        const min = PAIR_THRESHOLDS[key];
+        const min = getPairThresholds()[key];
         if (min === undefined) continue;
         const spreadBps = Math.abs(a.price - b.price) / Math.min(a.price, b.price) * 10000;
         if (spreadBps >= min) {
@@ -684,7 +716,7 @@
     // Coinbase-to-DEX opportunities (uses effective ask/bid from order book)
     if (cexRow) {
       for (const dex of dexRows) {
-        const min = CEX_THRESHOLDS[dex.chain];
+        const min = getCexThresholds()[dex.chain];
         if (min === undefined) continue;
 
         // DEX price > Coinbase effective ask → buy on Coinbase, sell on DEX
@@ -813,6 +845,41 @@
     startCountdown();
   });
 
+  // ── Thresholds ───────────────────────────────────────────────────────────────
+  function loadThresholds() {
+    try {
+      const saved = JSON.parse(localStorage.getItem('arb-thresholds') || '{}');
+      Object.keys(DEFAULT_THRESHOLDS).forEach(k => {
+        if (typeof saved[k] === 'number' && saved[k] >= 0) thresholds[k] = saved[k];
+      });
+    } catch (_) {}
+    syncThresholdInputs();
+  }
+
+  function saveThresholds() {
+    localStorage.setItem('arb-thresholds', JSON.stringify(thresholds));
+  }
+
+  function syncThresholdInputs() {
+    const map = {
+      'thr-polygon-base':      'polygon_base',
+      'thr-polygon-avalanche': 'polygon_avalanche',
+      'thr-base-avalanche':    'base_avalanche',
+      'thr-cex-base':          'cex_base',
+      'thr-cex-polygon':       'cex_polygon',
+      'thr-cex-avalanche':     'cex_avalanche',
+    };
+    Object.entries(map).forEach(([id, key]) => {
+      const el = document.getElementById(id);
+      if (el) el.value = thresholds[key];
+    });
+  }
+
+  function toggleThresholds() {
+    const panel = document.getElementById('threshold-panel');
+    panel.style.display = panel.style.display === 'none' ? 'flex' : 'none';
+  }
+
   // ── Notifications ────────────────────────────────────────────────────────────
   function updateNotifBtn() {
     const btn = document.getElementById('notif-btn');
@@ -851,6 +918,23 @@
     navigator.serviceWorker.register('./sw.js').catch(() => {});
   }
 
+  // Threshold input listeners
+  const thrMap = {
+    'thr-polygon-base':      'polygon_base',
+    'thr-polygon-avalanche': 'polygon_avalanche',
+    'thr-base-avalanche':    'base_avalanche',
+    'thr-cex-base':          'cex_base',
+    'thr-cex-polygon':       'cex_polygon',
+    'thr-cex-avalanche':     'cex_avalanche',
+  };
+  Object.entries(thrMap).forEach(([id, key]) => {
+    document.getElementById(id).addEventListener('change', e => {
+      const val = parseInt(e.target.value);
+      if (!isNaN(val) && val >= 0) { thresholds[key] = val; saveThresholds(); refresh(); }
+    });
+  });
+
+  loadThresholds();
   updateNotifBtn();
   refresh();
   scheduleRefresh();
